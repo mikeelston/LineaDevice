@@ -1,4 +1,4 @@
-cordova.define("com.allada.phonegap.webinterface.ScannerDevice", function(require, exports, module) { /*
+/*
  * Copyright 2014 Nathan Bruer
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -430,6 +430,7 @@ ScannerDevice.allowedCallbacks = [
 */
 ScannerDevice.allowedFunctions = [
 	'enableBarcode',
+	'playSound',
 	'rfRadioInit',
 	'startScan',
 	'stopScan',
@@ -720,4 +721,3 @@ document.addEventListener('deviceready', function (){
 }, false);
 
 module.exports = ScannerDevice;
-});

@@ -519,8 +519,8 @@ static NSString *hexToString(NSString * label, const void *data, size_t length)
 
 -(void)rfCardDetected: (int) cardIndex info: (DTRFCardInfo *) info{
 
-    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Wait" message:[info typeStr] delegate:self cancelButtonTitle:@"Ok" otherButtonTitles:@"Cancel", nil];
-    [alert show];
+    // UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Wait" message:[info typeStr] delegate:self cancelButtonTitle:@"Ok" otherButtonTitles:@"Cancel", nil];
+    // [alert show];
 
     // asdf
     BEGIN_JSINJECTWARPPER
