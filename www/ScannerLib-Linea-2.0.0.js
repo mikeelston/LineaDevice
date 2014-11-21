@@ -1,4 +1,4 @@
-/*
+cordova.define("com.allada.phonegap.webinterface.ScannerDevice", function(require, exports, module) { /*
  * Copyright 2014 Nathan Bruer
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -148,6 +148,7 @@ ScannerDevice = function (mappings){
 				break;
 			case 'barcodeType2Text': break;
 			case 'getConnectionState': break;
+			case 'rfRadioInit': break;
 		}
 		if(ScannerDevice.allowedFunctions.indexOf(command) == -1){
 			if(Debugging)
@@ -164,6 +165,12 @@ ScannerDevice = function (mappings){
 	*/
 	this.enableBarcode = function (barcode, enabled){
 		this.sendCommand('enableBarcode', [barcode, enabled]);
+	};
+	
+	this.enableRFModule = function (){
+		//     [linea rfInit:CARD_SUPPORT_TYPE_A error:nil];
+
+		this.sendCommand('rfRadioInit', "" );
 	};
 	/**
 	* Plays a sound from the linea device.
@@ -415,14 +422,15 @@ ScannerDevice.allowedCallbacks = [
 	'magneticCardRawData',
 	'buttonPressed',
 	'buttonReleased',
-	'connectionState'
+	'connectionState',
+	'rfCardDetected'
 ];
 /**
 * Allowed functions that scanner accepts.
 */
 ScannerDevice.allowedFunctions = [
 	'enableBarcode',
-	'playSound',
+	'rfRadioInit',
 	'startScan',
 	'stopScan',
 	'setScanMode',
@@ -712,3 +720,4 @@ document.addEventListener('deviceready', function (){
 }, false);
 
 module.exports = ScannerDevice;
+});

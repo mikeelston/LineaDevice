@@ -35,6 +35,7 @@
 - (void) disconnectLinea:(NSNotification *)notification;
 
 // Start JS Callable Functions
+- (void) rfRadioInit:(CDVInvokedUrlCommand*)command;
 - (void) playSound:(CDVInvokedUrlCommand*)command;
 - (void) startScan:(CDVInvokedUrlCommand*)command;
 - (void) stopScan:(CDVInvokedUrlCommand*)command;

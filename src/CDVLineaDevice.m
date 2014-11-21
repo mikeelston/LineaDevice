@@ -24,6 +24,24 @@
 @implementation CDVLineaDevice
 @synthesize callbackId;
 
+static NSString *hexToString(NSString * label, const void *data, size_t length)
+{
+    const char HEX[]="0123456789ABCDEF";
+    char s[20000];
+    for(int i=0;i<length;i++)
+    {
+        s[i*3]=HEX[((uint8_t *)data)[i]>>4];
+        s[i*3+1]=HEX[((uint8_t *)data)[i]&0x0f];
+        s[i*3+2]=' ';
+    }
+    s[length*3]=0;
+    
+    if(label)
+        return [NSString stringWithFormat:@"%@(%d): %s",label,(int)length,s];
+    else
+        return [NSString stringWithCString:s encoding:NSASCIIStringEncoding];
+}
+
 - (CDVPlugin*) initWithWebView:(UIWebView*)theWebView {
     LOG(@"initing Linea Device Plugin");
     self = [super initWithWebView:theWebView];
@@ -50,8 +68,14 @@
     LOG(@"Connecting to linea device");
     if(linea == nil)
         linea = [DTDevices sharedDevice];
-	[linea addDelegate:self];
-	[linea connect];
+
+    
+    [linea addDelegate:self];
+    [linea connect];
+    LOG(@"ATTEMPTING RF INIT");
+//    [NSException raise:@"RFIDInit" format:@"Called RFID Init"];
+    
+    LOG(@"COMPLETED RF INIT");
 }
 - (void) disconnectLinea:(NSNotification *)notification {
     LOG(@"Disconnecting from linea device");
@@ -73,7 +97,7 @@
     NSMutableArray *returnArgs = [[NSMutableArray alloc] init]; \
     @try { \
         if (lineaConnectedCheck && [linea connstate] != CONN_CONNECTED) { \
-            [NSException raise:@"NoDevice" format:@"Linea Device is currently not connected"]; \
+            [NSException raise:@"NoDevice" format:@"Linea Device is currently not connected Mike & Mark"]; \
         } \
         if([arguments count] < required_args) { \
             [NSException raise:@"InvalidArgument" format:@"Function requires %i arguments and %i arguments passed",required_args, [arguments count]]; \
@@ -330,6 +354,7 @@
 }
 
 
+
 // Non-device driven functions
 /**
  * Sets which function will be used to monitor events from linea device.
@@ -337,16 +362,16 @@
 - (void) monitor:(CDVInvokedUrlCommand*)command {
     self.callbackId = command.callbackId;
     BEGIN_ARGCHECKWRAPPER(0, false)
-    	[returnArgs addObject:@"connectionState"];
-    	[returnArgs addObject:[NSNumber numberWithInt:lineaConnectionState]];
-    	pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:returnArgs];
-    	[pluginResult setKeepCallbackAsBool: true];
-    	javaScript = [pluginResult toSuccessCallbackString:localCallbackId];
-	} @catch (id exception){
-    	pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_JSON_EXCEPTION messageAsString:[exception reason]];
-    	javaScript = [pluginResult toErrorCallbackString:localCallbackId];
-	}
-	[self writeJavascript:[NSString stringWithFormat:@"window.setTimeout(function(){%@;},0);", javaScript]];
+        [returnArgs addObject:@"connectionState"];
+        [returnArgs addObject:[NSNumber numberWithInt:lineaConnectionState]];
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsArray:returnArgs];
+        [pluginResult setKeepCallbackAsBool: true];
+        javaScript = [pluginResult toSuccessCallbackString:localCallbackId];
+    } @catch (id exception){
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_JSON_EXCEPTION messageAsString:[exception reason]];
+        javaScript = [pluginResult toErrorCallbackString:localCallbackId];
+    }
+    [self writeJavascript:[NSString stringWithFormat:@"window.setTimeout(function(){%@;},0);", javaScript]];
 }
 /**
  * Unsets the function used to monitor events from the linea device.
@@ -450,23 +475,78 @@
     [returnArgs addObject:[NSNumber numberWithBool:present]];
     END_JSINJECTWRAPPER
 }
+
+-(NSData *)mifareSafeRead:(int)cardIndex address:(int)address length:(int)length key:(NSData *)key error:(NSError **)error
+{
+    if(address<4) //don't touch the first sector
+        return false;
+    
+    if(key==nil)
+    {
+        //use the default key
+        const uint8_t keyBytes[]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+        key=[NSData dataWithBytes:keyBytes length:sizeof(keyBytes)];
+    }
+    
+    if(![linea mfAuthByKey:cardIndex type:'A' address:address key:key error:error])
+        return false;
+    
+    NSMutableData *data=[NSMutableData data];
+    
+    int read=0;
+    while (read<length)
+    {
+        if((address%4)==3)
+        {
+            address++;
+            if(![linea mfAuthByKey:cardIndex type:'A' address:address key:key error:error])
+                return false;
+        }
+        
+        NSData *block=[linea mfRead:cardIndex address:address length:16 error:error];
+        if(!block)
+            return nil;
+        [data appendData:block];
+        read+=16;
+        address++;
+    }
+    return data;
+}
+
+- (void) rfRadioInit:(NSString *)command {
+    [linea rfInit:CARD_SUPPORT_TYPE_A error:nil];   
+}
+
 -(void)rfCardDetected: (int) cardIndex info: (DTRFCardInfo *) info{
+
+    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Wait" message:[info typeStr] delegate:self cancelButtonTitle:@"Ok" otherButtonTitles:@"Cancel", nil];
+    [alert show];
+
+    // asdf
     BEGIN_JSINJECTWARPPER
     [returnArgs addObject:@"rfCardDetected"];
-    [returnArgs addObject:[NSNumber numberWithBool:cardIndex]];
-    NSDictionary *dict = [NSDictionary dictionary];
-    [dict setValue:[NSNumber numberWithInt:[info type]] forKey:@"type"];
-    [dict setValue:[info typeStr] forKey:@"typeStr"];
-    [dict setValue:[info UID] forKey:@"UID"];
-    [dict setValue:[NSNumber numberWithInt:[info ATQA]] forKey:@"ATQA"];
-    [dict setValue:[NSNumber numberWithInt:[info SAK]] forKey:@"SAK"];
-    [dict setValue:[NSNumber numberWithInt:[info AFI]] forKey:@"AFI"];
-    [dict setValue:[NSNumber numberWithInt:[info DSFID]] forKey:@"DSFID"];
-    [dict setValue:[NSNumber numberWithInt:[info blockSize]] forKey:@"blockSize"];
-    [dict setValue:[NSNumber numberWithInt:[info nBlocks]] forKey:@"nBlocks"];
-    [returnArgs addObject:dict];
+    // [returnArgs addObject:[NSNumber numberWithBool:cardIndex]];
+    [returnArgs addObject: hexToString(nil,info.UID.bytes,info.UID.length) ];
+    // [returnArgs addObject: hexToString(nil,info.ATQA.bytes,info.ATQA.length) ];
+    NSData *block=[self mifareSafeRead:cardIndex address:8 length:4*16 key:nil error:nil];
+
+    if(block)
+        [returnArgs addObject: hexToString(nil,(uint8_t *)block.bytes,block.length) ];
+
+    // NSDictionary *dict = [NSDictionary dictionary];
+    // [dict setValue:[NSNumber numberWithInt:[info type]] forKey:@"type"];
+    // [dict setValue:[info typeStr] forKey:@"typeStr"];
+    // [dict setValue:[info UID] forKey:@"UID"];
+    // [dict setValue:[NSNumber numberWithInt:[info ATQA]] forKey:@"ATQA"];
+    // [dict setValue:[NSNumber numberWithInt:[info SAK]] forKey:@"SAK"];
+    // [dict setValue:[NSNumber numberWithInt:[info AFI]] forKey:@"AFI"];
+    // [dict setValue:[NSNumber numberWithInt:[info DSFID]] forKey:@"DSFID"];
+    // [dict setValue:[NSNumber numberWithInt:[info blockSize]] forKey:@"blockSize"];
+    // [dict setValue:[NSNumber numberWithInt:[info nBlocks]] forKey:@"nBlocks"];
+    // [returnArgs addObject:dict];
     END_JSINJECTWRAPPER
 }
+
 -(void)bluetoothDeviceConnected:(NSString *)btAddress{
     BEGIN_JSINJECTWARPPER
     [returnArgs addObject:@"bluetoothDeviceConnected"];
